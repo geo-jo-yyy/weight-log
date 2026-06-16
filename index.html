@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="減量ログ">
+<meta name="theme-color" content="#0f172a">
+<title>減量ログ</title>
+<style>
+  :root{
+    --bg:#0f172a; --card:#1e293b; --card2:#273449; --ink:#f1f5f9; --muted:#94a3b8;
+    --accent:#38bdf8; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --line:#334155;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif;}
+  body{padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 80px);}
+  header{padding:16px 16px 8px; text-align:center;}
+  header h1{margin:0; font-size:20px; letter-spacing:.02em;}
+  header .sub{color:var(--muted); font-size:12px; margin-top:2px;}
+  .wrap{max-width:560px; margin:0 auto; padding:0 12px;}
+  .card{background:var(--card); border-radius:16px; padding:16px; margin:12px 0;
+    box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);}
+  .card h2{margin:0 0 12px; font-size:14px; color:var(--muted); font-weight:600; letter-spacing:.04em;}
+  /* stats */
+  .stats{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .stat{background:var(--card2); border-radius:12px; padding:12px;}
+  .stat .label{font-size:11px; color:var(--muted);}
+  .stat .val{font-size:24px; font-weight:700; margin-top:2px;}
+  .stat .val small{font-size:13px; font-weight:600; color:var(--muted);}
+  .delta{font-size:12px; margin-top:4px; font-weight:600;}
+  .delta.good{color:var(--good);} .delta.bad{color:var(--bad);} .delta.flat{color:var(--muted);}
+  /* form */
+  .row{display:flex; gap:10px; flex-wrap:wrap;}
+  .field{flex:1 1 calc(50% - 5px); min-width:120px;}
+  .field.full{flex-basis:100%;}
+  label{display:block; font-size:12px; color:var(--muted); margin:0 0 4px 2px;}
+  input,textarea,button,select{font-family:inherit; font-size:16px;}
+  input,textarea,select{width:100%; background:var(--card2); border:1px solid var(--line);
+    color:var(--ink); border-radius:10px; padding:12px; outline:none;}
+  input:focus,textarea:focus{border-color:var(--accent);}
+  textarea{resize:vertical; min-height:44px;}
+  .btn{display:block; width:100%; border:none; border-radius:12px; padding:14px;
+    font-size:16px; font-weight:700; background:var(--accent); color:#062a3a; margin-top:12px;}
+  .btn:active{transform:scale(.99);}
+  .btn.ghost{background:var(--card2); color:var(--ink); border:1px solid var(--line); font-weight:600;}
+  .btn-row{display:flex; gap:10px;} .btn-row .btn{margin-top:0;}
+  /* chart */
+  svg{width:100%; height:auto; display:block;}
+  .legend{display:flex; gap:14px; justify-content:center; font-size:11px; color:var(--muted); margin-top:6px; flex-wrap:wrap;}
+  .legend i{display:inline-block; width:12px; height:3px; border-radius:2px; vertical-align:middle; margin-right:4px;}
+  /* table */
+  table{width:100%; border-collapse:collapse; font-size:13px;}
+  th,td{padding:9px 6px; text-align:right; border-bottom:1px solid var(--line);}
+  th{color:var(--muted); font-weight:600; font-size:11px;}
+  td:first-child,th:first-child{text-align:left;}
+  .del{color:var(--bad); background:none; border:none; padding:4px 8px; font-size:13px;}
+  .edit{color:var(--accent); background:none; border:none; padding:4px 8px; font-size:13px;}
+  .empty{color:var(--muted); text-align:center; padding:24px 0; font-size:13px;}
+  details summary{color:var(--muted); font-size:12px; cursor:pointer; padding:4px 0;}
+  .hint{color:var(--muted); font-size:11px; margin-top:8px; line-height:1.5;}
+  .toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:#0b1220;
+    border:1px solid var(--line); color:var(--ink); padding:10px 18px; border-radius:999px;
+    font-size:13px; opacity:0; transition:opacity .25s; pointer-events:none; z-index:50;}
+  .toast.show{opacity:1;}
+</style>
+</head>
+<body>
+<header>
+  <h1>📉 減量ログ</h1>
+  <div class="sub" id="paceSub">目標ペース 週 −500g</div>
+</header>
+
+<div class="wrap">
+
+  <!-- 統計 -->
+  <div class="card">
+    <h2>いまの状態（7日平均で判断）</h2>
+    <div class="stats">
+      <div class="stat">
+        <div class="label">7日平均体重</div>
+        <div class="val" id="sAvg">— <small>kg</small></div>
+        <div class="delta flat" id="sAvgDelta">記録待ち</div>
+      </div>
+      <div class="stat">
+        <div class="label">直近7日の増減</div>
+        <div class="val" id="sWeek">— <small>g</small></div>
+        <div class="delta flat" id="sWeekJudge">—</div>
+      </div>
+      <div class="stat">
+        <div class="label">開始からの変化</div>
+        <div class="val" id="sTotal">— <small>kg</small></div>
+        <div class="delta flat" id="sStart">開始: —</div>
+      </div>
+      <div class="stat">
+        <div class="label">ウエスト</div>
+        <div class="val" id="sWaist">— <small>cm</small></div>
+        <div class="delta flat" id="sWaistDelta">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 入力 -->
+  <div class="card">
+    <h2>今日の記録</h2>
+    <div class="row">
+      <div class="field full">
+        <label>日付</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="field">
+        <label>体重 (kg) ※必須</label>
+        <input type="number" id="fWeight" inputmode="decimal" step="0.1" placeholder="92.7">
+      </div>
+      <div class="field">
+        <label>ウエスト (cm)</label>
+        <input type="number" id="fWaist" inputmode="decimal" step="0.1" placeholder="任意">
+      </div>
+      <div class="field">
+        <label>体脂肪 (%)</label>
+        <input type="number" id="fFat" inputmode="decimal" step="0.1" placeholder="任意">
+      </div>
+      <div class="field">
+        <label>メモ</label>
+        <input type="text" id="fMemo" placeholder="任意（飲み会・体調など）">
+      </div>
+    </div>
+    <button class="btn" id="saveBtn">保存する</button>
+    <div class="hint">同じ日付で保存すると上書きされます。朝イチ・トイレ後・同じ服装で測るのがおすすめ。</div>
+  </div>
+
+  <!-- グラフ -->
+  <div class="card">
+    <h2>体重の推移</h2>
+    <div id="chart"></div>
+    <div class="legend">
+      <span><i style="background:#64748b"></i>毎日の体重</span>
+      <span><i style="background:var(--accent)"></i>7日平均</span>
+      <span><i style="background:var(--warn)"></i>目標ライン</span>
+    </div>
+  </div>
+
+  <!-- 履歴 -->
+  <div class="card">
+    <h2>履歴</h2>
+    <div id="histWrap"></div>
+  </div>
+
+  <!-- 設定・バックアップ -->
+  <div class="card">
+    <h2>設定とバックアップ</h2>
+    <div class="row">
+      <div class="field">
+        <label>開始体重 (kg)</label>
+        <input type="number" id="cStart" inputmode="decimal" step="0.1" placeholder="92.7">
+      </div>
+      <div class="field">
+        <label>目標ペース (g/週・減)</label>
+        <input type="number" id="cPace" inputmode="numeric" step="50" placeholder="500">
+      </div>
+    </div>
+    <button class="btn ghost" id="saveCfg">設定を保存</button>
+    <div class="btn-row" style="margin-top:12px;">
+      <button class="btn ghost" id="exportBtn">CSV書き出し</button>
+      <button class="btn ghost" id="importBtn">CSV読み込み</button>
+    </div>
+    <input type="file" id="fileIn" accept=".csv,text/csv" style="display:none">
+    <details style="margin-top:12px;">
+      <summary>iPhoneでアプリのように使う方法</summary>
+      <div class="hint">
+        1. このファイルをSafariで開く（Googleドライブやファイルアプリ経由）<br>
+        2. 共有ボタン → <b>「ホーム画面に追加」</b><br>
+        3. 以後はアイコンから起動。データは端末内に保存される<br>
+        ⚠️ 念のため週1でCSV書き出しをドライブに保存しておくと安心。
+      </div>
+    </details>
+  </div>
+
+  <div class="hint" style="text-align:center; padding:8px 0 24px;">
+    データはこの端末のブラウザ内だけに保存されます（外部送信なし・オフライン動作）。
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  var DKEY="weightLog.entries", CKEY="weightLog.config";
+  var entries = load(DKEY, []);
+  var cfg = load(CKEY, {start:92.7, pace:500});
+
+  function load(k,def){ try{var v=localStorage.getItem(k); return v?JSON.parse(v):def;}catch(e){return def;} }
+  function save(){ localStorage.setItem(DKEY, JSON.stringify(entries)); localStorage.setItem(CKEY, JSON.stringify(cfg)); }
+  function $(id){ return document.getElementById(id); }
+  function todayStr(){ var d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function num(v){ var n=parseFloat(v); return isNaN(n)?null:n; }
+  function fmt(n,d){ return n==null?"—":n.toFixed(d==null?1:d); }
+  function sortE(){ entries.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; }); }
+  var toastT;
+  function toast(msg){ var t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},1800); }
+
+  // 7日移動平均（その日含む直近7日の体重平均）
+  function movingAvg(idx){
+    var day = new Date(entries[idx].date);
+    var sum=0,c=0;
+    for(var j=idx;j>=0;j--){
+      var diff=(day-new Date(entries[j].date))/86400000;
+      if(diff>6) break;
+      if(entries[j].weight!=null){ sum+=entries[j].weight; c++; }
+    }
+    return c?sum/c:null;
+  }
+
+  function render(){
+    sortE();
+    renderStats();
+    renderChart();
+    renderHist();
+    $("paceSub").textContent = "目標ペース 週 −"+(cfg.pace||500)+"g";
+  }
+
+  function renderStats(){
+    var n=entries.length;
+    var startW = cfg.start!=null ? cfg.start : (n? entries[0].weight : null);
+    $("sStart").textContent = "開始: "+(startW!=null?fmt(startW)+"kg":"—");
+    if(!n){ return; }
+    var lastAvg=movingAvg(n-1);
+    $("sAvg").innerHTML = fmt(lastAvg)+' <small>kg</small>';
+
+    // 前回記録時の7日平均との差（参考）
+    if(n>=2){
+      var prevAvg=movingAvg(n-2);
+      var d=(lastAvg-prevAvg)*1000;
+      setDelta($("sAvgDelta"), d, "前回比 ", "g");
+    } else $("sAvgDelta").textContent="記録待ち";
+
+    // 直近7日の増減：今日の平均 vs 7日以上前の平均
+    var weekAgoAvg=null;
+    var day=new Date(entries[n-1].date);
+    for(var j=n-1;j>=0;j--){
+      var diff=(day-new Date(entries[j].date))/86400000;
+      if(diff>=7){ weekAgoAvg=movingAvg(j); break; }
+    }
+    if(weekAgoAvg!=null){
+      var wd=(lastAvg-weekAgoAvg)*1000;
+      $("sWeek").innerHTML = (wd>0?"+":"")+Math.round(wd)+' <small>g</small>';
+      judgeWeek($("sWeekJudge"), wd);
+    } else { $("sWeek").innerHTML='— <small>g</small>'; $("sWeekJudge").textContent="7日分たまると表示"; }
+
+    // 開始からの変化
+    if(startW!=null){
+      var td=lastAvg-startW;
+      $("sTotal").innerHTML=(td>0?"+":"")+fmt(td)+' <small>kg</small>';
+    }
+
+    // ウエスト（最新の入力値）
+    var lastWaist=null, prevWaist=null;
+    for(var k=n-1;k>=0;k--){ if(entries[k].waist!=null){ if(lastWaist==null) lastWaist=entries[k].waist; else {prevWaist=entries[k].waist; break;} } }
+    if(lastWaist!=null){
+      $("sWaist").innerHTML=fmt(lastWaist)+' <small>cm</small>';
+      if(prevWaist!=null) setDelta($("sWaistDelta"), (lastWaist-prevWaist)*10/10*10, "前回比 ", "cm", (lastWaist-prevWaist));
+      else $("sWaistDelta").textContent="記録待ち";
+    } else { $("sWaist").innerHTML='— <small>cm</small>'; $("sWaistDelta").textContent="未記録"; }
+  }
+
+  function setDelta(el, grams, prefix, unit, rawCm){
+    el.className="delta";
+    var v = unit==="cm" ? (rawCm) : grams;
+    if(Math.abs(v) < (unit==="cm"?0.05:1)){ el.classList.add("flat"); el.textContent=prefix+"±0"; return; }
+    var down = v<0;
+    el.classList.add(down?"good":"bad");
+    if(unit==="cm") el.textContent=prefix+(v>0?"+":"")+v.toFixed(1)+"cm";
+    else el.textContent=prefix+(v>0?"+":"")+Math.round(v)+"g";
+  }
+  function judgeWeek(el, g){
+    el.className="delta";
+    var target=cfg.pace||500;
+    if(g <= -target*1.6){ el.classList.add("warn"); el.style.color="var(--warn)"; el.textContent="速すぎ→+150kcal検討"; }
+    else if(g <= -target*0.6){ el.classList.add("good"); el.style.color=""; el.textContent="◎ 黄金ペース"; }
+    else if(g < 0){ el.classList.add("flat"); el.style.color=""; el.textContent="やや遅い"; }
+    else { el.classList.add("bad"); el.style.color=""; el.textContent="停滞→−150kcal or 歩数↑"; }
+  }
+
+  function renderChart(){
+    var box=$("chart");
+    var pts=entries.filter(function(e){return e.weight!=null;});
+    if(pts.length<1){ box.innerHTML='<div class="empty">体重を記録するとグラフが出ます</div>'; return; }
+    var W=520,H=260,padL=38,padR=12,padT=14,padB=26;
+    var xs=pts.map(function(e){return new Date(e.date).getTime();});
+    var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
+    if(minX===maxX){ maxX=minX+86400000; }
+    var avgArr=[]; entries.forEach(function(e,i){ if(e.weight!=null) avgArr.push({x:new Date(e.date).getTime(), y:movingAvg(i)}); });
+    // 目標ライン: 開始体重から週pace gで減
+    var startW = cfg.start!=null?cfg.start:pts[0].weight;
+    var startX = cfg.start!=null? minX : new Date(pts[0].date).getTime();
+    var paceKgPerMs=(cfg.pace||500)/1000/(7*86400000);
+    var tgtY1=startW, tgtY2=startW-paceKgPerMs*(maxX-startX);
+    var allY=pts.map(function(e){return e.weight;}).concat(avgArr.map(function(a){return a.y;})).concat([tgtY1,tgtY2]);
+    var minY=Math.min.apply(null,allY), maxY=Math.max.apply(null,allY);
+    var pad=(maxY-minY)*0.12||0.5; minY-=pad; maxY+=pad;
+    function X(t){ return padL+(t-minX)/(maxX-minX)*(W-padL-padR); }
+    function Y(v){ return padT+(maxY-v)/(maxY-minY)*(H-padT-padB); }
+    var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">';
+    // grid + y labels
+    for(var g=0;g<=4;g++){ var yv=minY+(maxY-minY)*g/4; var yy=Y(yv);
+      svg+='<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" stroke="#334155" stroke-width="1"/>';
+      svg+='<text x="'+(padL-4)+'" y="'+(yy+3)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+yv.toFixed(1)+'</text>';
+    }
+    // target line
+    svg+='<line x1="'+X(startX)+'" y1="'+Y(tgtY1)+'" x2="'+X(maxX)+'" y2="'+Y(tgtY2)+'" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 4" opacity="0.8"/>';
+    // daily points + thin line
+    var dp=""; pts.forEach(function(e,i){ var x=X(new Date(e.date).getTime()),y=Y(e.weight); dp+=(i?"L":"M")+x+" "+y+" "; });
+    svg+='<path d="'+dp+'" fill="none" stroke="#64748b" stroke-width="1.2" opacity="0.7"/>';
+    pts.forEach(function(e){ svg+='<circle cx="'+X(new Date(e.date).getTime())+'" cy="'+Y(e.weight)+'" r="2.4" fill="#94a3b8"/>'; });
+    // moving average line
+    var ap=""; avgArr.forEach(function(a,i){ ap+=(i?"L":"M")+X(a.x)+" "+Y(a.y)+" "; });
+    svg+='<path d="'+ap+'" fill="none" stroke="#38bdf8" stroke-width="2.6" stroke-linejoin="round"/>';
+    // x labels (first/last)
+    svg+='<text x="'+padL+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="start">'+pts[0].date.slice(5)+'</text>';
+    svg+='<text x="'+(W-padR)+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+pts[pts.length-1].date.slice(5)+'</text>';
+    svg+='</svg>';
+    box.innerHTML=svg;
+  }
+
+  function renderHist(){
+    var box=$("histWrap");
+    if(!entries.length){ box.innerHTML='<div class="empty">まだ記録がありません</div>'; return; }
+    var rows='<table><thead><tr><th>日付</th><th>体重</th><th>7日平均</th><th>ウエスト</th><th>体脂肪</th><th></th></tr></thead><tbody>';
+    for(var i=entries.length-1;i>=0;i--){
+      var e=entries[i], avg=e.weight!=null?movingAvg(i):null;
+      rows+='<tr>'
+        +'<td>'+e.date.slice(5)+'</td>'
+        +'<td>'+fmt(e.weight)+'</td>'
+        +'<td style="color:#38bdf8">'+fmt(avg)+'</td>'
+        +'<td>'+fmt(e.waist)+'</td>'
+        +'<td>'+fmt(e.fat)+'</td>'
+        +'<td style="white-space:nowrap"><button class="edit" data-d="'+e.date+'">編集</button><button class="del" data-d="'+e.date+'">削除</button></td>'
+        +'</tr>';
+      if(e.memo) rows+='<tr><td colspan="6" style="color:#94a3b8;font-size:11px;text-align:left;padding-top:0;border:none">📝 '+escapeHtml(e.memo)+'</td></tr>';
+    }
+    rows+='</tbody></table>';
+    box.innerHTML=rows;
+    box.querySelectorAll(".del").forEach(function(b){ b.onclick=function(){ delEntry(b.getAttribute("data-d")); }; });
+    box.querySelectorAll(".edit").forEach(function(b){ b.onclick=function(){ editEntry(b.getAttribute("data-d")); }; });
+  }
+  function escapeHtml(s){ return s.replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+
+  function saveEntry(){
+    var date=$("fDate").value||todayStr();
+    var w=num($("fWeight").value);
+    if(w==null){ toast("体重を入力してね"); return; }
+    var rec={date:date, weight:w, waist:num($("fWaist").value), fat:num($("fFat").value), memo:($("fMemo").value||"").trim()};
+    var idx=entries.findIndex(function(e){return e.date===date;});
+    if(idx>=0) entries[idx]=rec; else entries.push(rec);
+    if(cfg.start==null){ cfg.start=w; $("cStart").value=w; }
+    save(); render();
+    $("fWeight").value=""; $("fWaist").value=""; $("fFat").value=""; $("fMemo").value="";
+    toast("保存したよ 💪");
+  }
+  function delEntry(date){ if(!confirm(date.slice(5)+" の記録を削除する？")) return; entries=entries.filter(function(e){return e.date!==date;}); save(); render(); toast("削除した"); }
+  function editEntry(date){
+    var e=entries.find(function(x){return x.date===date;}); if(!e) return;
+    $("fDate").value=e.date; $("fWeight").value=e.weight!=null?e.weight:""; $("fWaist").value=e.waist!=null?e.waist:"";
+    $("fFat").value=e.fat!=null?e.fat:""; $("fMemo").value=e.memo||"";
+    window.scrollTo({top:0,behavior:"smooth"}); toast("読み込んだ。直して保存で上書き");
+  }
+
+  function exportCSV(){
+    var head="date,weight,waist,fat,memo\n";
+    var body=entries.map(function(e){ return [e.date, e.weight==null?"":e.weight, e.waist==null?"":e.waist, e.fat==null?"":e.fat, '"'+(e.memo||"").replace(/"/g,'""')+'"'].join(","); }).join("\n");
+    var blob=new Blob([head+body], {type:"text/csv;charset=utf-8"});
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+    a.download="weight-log-"+todayStr()+".csv"; a.click();
+    toast("CSVを書き出した");
+  }
+  function importCSV(text){
+    var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
+    if(!lines.length){ toast("空ファイル"); return; }
+    var start = lines[0].toLowerCase().indexOf("date")===0 ? 1 : 0;
+    var added=0;
+    for(var i=start;i<lines.length;i++){
+      var c=parseCSVLine(lines[i]); if(c.length<2) continue;
+      var date=c[0].trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+      var rec={date:date, weight:num(c[1]), waist:num(c[2]), fat:num(c[3]), memo:(c[4]||"").trim()};
+      var idx=entries.findIndex(function(e){return e.date===date;});
+      if(idx>=0) entries[idx]=rec; else entries.push(rec); added++;
+    }
+    save(); render(); toast(added+"件 読み込んだ");
+  }
+  function parseCSVLine(line){
+    var out=[],cur="",q=false;
+    for(var i=0;i<line.length;i++){ var ch=line[i];
+      if(q){ if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+      else { if(ch===','){ out.push(cur); cur=""; } else if(ch==='"'){ q=true; } else cur+=ch; }
+    } out.push(cur); return out;
+  }
+
+  // wire up
+  $("fDate").value=todayStr();
+  if(cfg.start!=null) $("cStart").value=cfg.start;
+  $("cPace").value=cfg.pace||500;
+  $("saveBtn").onclick=saveEntry;
+  $("saveCfg").onclick=function(){ cfg.start=num($("cStart").value); cfg.pace=num($("cPace").value)||500; save(); render(); toast("設定を保存した"); };
+  $("exportBtn").onclick=exportCSV;
+  $("importBtn").onclick=function(){ $("fileIn").click(); };
+  $("fileIn").onchange=function(ev){ var f=ev.target.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(){ importCSV(r.result); }; r.readAsText(f); ev.target.value=""; };
+
+  render();
+})();
+</script>
+</body>
+</html>
