@@ -181,6 +181,12 @@
       <button class="tab" data-i="1">体脂肪</button>
       <button class="tab" data-i="2">ウエスト</button>
     </div>
+    <div class="tabs" id="rangeTabs" style="margin-top:-2px">
+      <button class="tab rg" data-r="7">1週間</button>
+      <button class="tab rg" data-r="30">1か月</button>
+      <button class="tab rg" data-r="90">3か月</button>
+      <button class="tab rg" data-r="0">全期間</button>
+    </div>
     <div class="carousel" id="carousel">
       <div class="slide"><div id="chartW"></div>
         <div class="legend">
@@ -464,19 +470,27 @@
       if(entries[i][key]!=null) pts.push({t:T(entries[i].date), v:entries[i][key], a:mavg(i,key), d:entries[i].date});
     }
     if(!pts.length){ box.innerHTML='<div class="empty">'+label+'を記録するとグラフが出ます</div>'; return; }
+    var rg=ui.range||0;
+    if(rg>0){
+      var cut=pts[pts.length-1].t-(rg-1)*86400000;
+      pts=pts.filter(function(p){ return p.t>=cut; });
+    }
     var W=520,H=260,padL=40,padR=12,padT=14,padB=26;
     var minX=pts[0].t, maxX=pts[pts.length-1].t;
     var startW=startWeight(), startX=cfg.startDate?T(cfg.startDate):minX;
     var showT = withTarget && startW!=null;
-    if(showT) minX=Math.min(minX,startX);
+    if(showT && rg===0) minX=Math.min(minX,startX);
     if(minX===maxX) maxX=minX+86400000;
     var perMs=cfg.pace/1000/(7*86400000), tPath=null;
+    function tY(t){ var v=startW-perMs*(t-startX); return (cfg.goal!=null && cfg.goal<startW)?Math.max(v,cfg.goal):v; }
     if(showT){
-      var y2=startW-perMs*(maxX-startX);
-      if(cfg.goal!=null && cfg.goal<startW && y2<cfg.goal){
+      var tx0=Math.max(minX,startX);
+      tPath=[[tx0,tY(tx0)]];
+      if(cfg.goal!=null && cfg.goal<startW){
         var tEnd=startX+(startW-cfg.goal)/perMs;
-        tPath=[[startX,startW],[tEnd,cfg.goal],[maxX,cfg.goal]];
-      } else tPath=[[startX,startW],[maxX,y2]];
+        if(tEnd>tx0 && tEnd<maxX) tPath.push([tEnd,cfg.goal]);
+      }
+      tPath.push([maxX,tY(maxX)]);
     }
     var vals=[];
     pts.forEach(function(p){ if(ui.daily||!ui.avg) vals.push(p.v); if(ui.avg||!ui.daily) vals.push(p.a); });
@@ -504,8 +518,11 @@
       svg+='<path d="'+ap+'" fill="none" stroke="'+color+'" stroke-width="2.6" stroke-linejoin="round"/>';
       if(pts.length===1) svg+='<circle cx="'+X(pts[0].t)+'" cy="'+Y(pts[0].a)+'" r="4" fill="'+color+'"/>';
     }
-    svg+='<text x="'+padL+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="start">'+new Date(minX).toISOString().slice(5,10)+'</text>';
-    svg+='<text x="'+(W-padR)+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+pts[pts.length-1].d.slice(5)+'</text>';
+    var nt=(maxX-minX)<=2*86400000?1:4;
+    for(var ti2=0;ti2<=nt;ti2++){
+      var tt=minX+(maxX-minX)*ti2/nt, dd=new Date(tt), lab=(dd.getMonth()+1)+"/"+dd.getDate();
+      svg+='<text x="'+X(tt)+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="'+(ti2===0?'start':ti2===nt?'end':'middle')+'">'+lab+'</text>';
+    }
     svg+='</svg>';
     box.innerHTML=svg;
   }
@@ -515,6 +532,8 @@
     drawChart("chartC","waist","#a78bfa",1,"ウエスト",false);
     var tg=document.querySelectorAll(".legend .tg");
     for(var i=0;i<tg.length;i++){ var k=tg[i].getAttribute("data-k"); tg[i].classList.toggle("off",!ui[k]); }
+    var rb=document.querySelectorAll(".tab.rg");
+    for(var j=0;j<rb.length;j++) rb[j].classList.toggle("on", +rb[j].getAttribute("data-r")===(ui.range||0));
   }
 
   function renderHist(){
@@ -681,7 +700,9 @@
   $("restartBox").addEventListener("toggle",function(){ if($("restartBox").open) prepRestart(); });
 
   // グラフのタブ＆スワイプ
-  var car=$("carousel"), tabs=document.querySelectorAll(".tab");
+  var rgs=document.querySelectorAll(".tab.rg");
+  for(var ri=0;ri<rgs.length;ri++){ rgs[ri].onclick=function(){ ui.range=+this.getAttribute("data-r"); save(); renderCharts(); }; }
+  var car=$("carousel"), tabs=document.querySelectorAll(".tabs:not(#rangeTabs) .tab");
   function setTab(i){ for(var k=0;k<tabs.length;k++) tabs[k].classList.toggle("on",k===i); }
   for(var ti=0;ti<tabs.length;ti++){ (function(i){ tabs[i].onclick=function(){ car.scrollTo({left:car.clientWidth*i,behavior:"smooth"}); setTab(i); }; })(ti); }
   car.addEventListener("scroll",function(){ setTab(Math.round(car.scrollLeft/car.clientWidth)); });
