@@ -124,6 +124,7 @@
         <div class="label">体脂肪 7日平均</div>
         <div class="val" id="sFat">— <small>%</small></div>
         <div class="delta flat" id="sFatDelta">未記録</div>
+        <div class="delta flat" id="sFatGoal" style="font-weight:500">目標 未設定</div>
       </div>
       <div class="stat">
         <div class="label">ウエスト</div>
@@ -198,6 +199,7 @@
         <div class="legend">
           <span class="tg" data-k="daily"><i style="background:#64748b"></i>毎日</span>
           <span class="tg" data-k="avg"><i style="background:var(--fat)"></i>7日平均</span>
+          <span><i style="background:var(--good)"></i>目標</span>
         </div></div>
       <div class="slide"><div id="chartC"></div>
         <div class="legend">
@@ -237,6 +239,10 @@
       <div class="field">
         <label>目標体重 (kg)</label>
         <input type="number" id="cGoal" inputmode="decimal" step="0.1" placeholder="任意">
+      </div>
+      <div class="field">
+        <label>目標体脂肪 (%)</label>
+        <input type="number" id="cFatGoal" inputmode="decimal" step="0.1" placeholder="任意">
       </div>
       <div class="field">
         <label>身長 (cm)・BMI用</label>
@@ -292,6 +298,7 @@
   if(cfg.start===undefined) cfg.start=null;
   if(cfg.pace==null) cfg.pace=500;
   if(cfg.goal===undefined) cfg.goal=null;
+  if(cfg.fatGoal===undefined) cfg.fatGoal=null;
   if(cfg.height===undefined) cfg.height=null;
   if(!cfg.cycles) cfg.cycles=[];
   if(cfg.startDate===undefined) cfg.startDate=null;
@@ -443,6 +450,14 @@
       if(fd!=null){ setDelta(fe,fd,"",true); if(Math.abs(fd)<0.05){fe.classList.add("flat");fe.textContent="7日前比 ±0";} else fe.textContent="7日前比 "+sgn(fd,1)+"%"; }
       else { fe.className="delta flat"; fe.textContent="7日分たまると比較"; }
     }
+    var fg=$("sFatGoal");
+    if(cfg.fatGoal==null){ fg.textContent="目標 未設定（設定で入力）"; }
+    else if(fi<0){ fg.textContent="目標 "+fmt(cfg.fatGoal)+"%"; }
+    else {
+      var fr=mavg(fi,"fat")-cfg.fatGoal;
+      fg.textContent = fr<=0 ? "🎉 目標 "+fmt(cfg.fatGoal)+"% 到達！" : "目標 "+fmt(cfg.fatGoal)+"% まであと "+fr.toFixed(1)+"%";
+      fg.style.color = fr<=0 ? "var(--good)" : "";
+    }
     // ウエスト
     var wi=lastIdx("waist");
     if(wi<0){ $("sWaist").innerHTML='— <small>cm</small>'; $("sWaistDelta").className="delta flat"; $("sWaistDelta").textContent="未記録"; }
@@ -495,6 +510,8 @@
     var vals=[];
     pts.forEach(function(p){ if(ui.daily||!ui.avg) vals.push(p.v); if(ui.avg||!ui.daily) vals.push(p.a); });
     if(tPath) tPath.forEach(function(q){ vals.push(q[1]); });
+    var gl = (key==="fat" && cfg.fatGoal!=null) ? cfg.fatGoal : null;
+    if(gl!=null) vals.push(gl);
     var minY=Math.min.apply(null,vals), maxY=Math.max.apply(null,vals);
     var pad=(maxY-minY)*0.12||0.5; minY-=pad; maxY+=pad;
     function X(t){ return padL+(t-minX)/(maxX-minX)*(W-padL-padR); }
@@ -507,6 +524,10 @@
     if(tPath){
       var tp=""; tPath.forEach(function(q,i){ tp+=(i?"L":"M")+X(q[0])+" "+Y(q[1])+" "; });
       svg+='<path d="'+tp+'" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 4" opacity="0.8"/>';
+    }
+    if(gl!=null){
+      svg+='<line x1="'+padL+'" y1="'+Y(gl)+'" x2="'+(W-padR)+'" y2="'+Y(gl)+'" stroke="#34d399" stroke-width="2" stroke-dasharray="5 4" opacity="0.85"/>';
+      svg+='<text x="'+(W-padR)+'" y="'+(Y(gl)-4)+'" fill="#34d399" font-size="9" text-anchor="end">目標 '+gl.toFixed(1)+'%</text>';
     }
     if(ui.daily){
       var dp=""; pts.forEach(function(p,i){ dp+=(i?"L":"M")+X(p.t)+" "+Y(p.v)+" "; });
@@ -536,11 +557,13 @@
     for(var j=0;j<rb.length;j++) rb[j].classList.toggle("on", +rb[j].getAttribute("data-r")===(ui.range||0));
   }
 
+  var histAll=false;
   function renderHist(){
     var box=$("histWrap");
     if(!entries.length){ box.innerHTML='<div class="empty">まだ記録がありません</div>'; return; }
     var rows='<table><thead><tr><th>日付</th><th>体重</th><th>7日平均</th><th>ウエスト</th><th>体脂肪</th><th></th></tr></thead><tbody>';
-    for(var i=entries.length-1;i>=0;i--){
+    var LIMIT=14, lowest=histAll?0:Math.max(0,entries.length-LIMIT);
+    for(var i=entries.length-1;i>=lowest;i--){
       var e=entries[i], avg=e.weight!=null?mavg(i,"weight"):null;
       var old = cfg.startDate && e.date<cfg.startDate;
       rows+='<tr'+(old?' class="old"':'')+'>'
@@ -554,7 +577,11 @@
       if(e.memo) rows+='<tr'+(old?' class="old"':'')+'><td colspan="6" style="color:#94a3b8;font-size:11px;text-align:left;padding-top:0;border:none">📝 '+escapeHtml(e.memo)+'</td></tr>';
     }
     rows+='</tbody></table>';
+    if(entries.length>LIMIT){
+      rows+='<button class="btn ghost" id="moreBtn" style="margin-top:10px">'+(histAll?'▲ 直近'+LIMIT+'件だけ表示':'▼ もっと見る（残り'+(entries.length-LIMIT)+'件）')+'</button>';
+    }
     box.innerHTML=rows;
+    var mb=$("moreBtn"); if(mb) mb.onclick=function(){ histAll=!histAll; renderHist(); };
     box.querySelectorAll(".del").forEach(function(b){ b.onclick=function(){ delEntry(b.getAttribute("data-d")); }; });
     box.querySelectorAll(".edit").forEach(function(b){ b.onclick=function(){ editEntry(b.getAttribute("data-d")); }; });
   }
@@ -636,7 +663,7 @@
     if(s!=null) t+="（開始 "+fmt(s)+"kg から "+sgn(avg-s,1)+"kg）";
     var wd=weekDelta("weight",li);
     if(wd!=null) t+="\n直近7日 "+(wd>0?"+":"")+Math.round(wd*1000)+"g";
-    var fi=lastIdx("fat"); if(fi>=0) t+="\n体脂肪(7日平均) "+fmt(mavg(fi,"fat"))+"%";
+    var fi=lastIdx("fat"); if(fi>=0){ t+="\n体脂肪(7日平均) "+fmt(mavg(fi,"fat"))+"%"; if(cfg.fatGoal!=null) t+="（目標 "+fmt(cfg.fatGoal)+"%）"; }
     var wi=lastIdx("waist"); if(wi>=0) t+="\nウエスト "+fmt(entries[wi].waist)+"cm";
     if(cfg.goal!=null) t+="\n目標 "+fmt(cfg.goal)+"kg（あと "+Math.max(0,avg-cfg.goal).toFixed(1)+"kg）";
     return t;
@@ -654,6 +681,7 @@
     $("cStartDate").value = cfg.startDate||"";
     $("cPace").value = cfg.pace||500;
     $("cGoal").value = cfg.goal!=null?cfg.goal:"";
+    $("cFatGoal").value = cfg.fatGoal!=null?cfg.fatGoal:"";
     $("cHeight").value = cfg.height!=null?cfg.height:"";
   }
   function saveCfg(){
@@ -661,6 +689,7 @@
     cfg.startDate=$("cStartDate").value||cfg.startDate||null;
     cfg.pace=num($("cPace").value)||500;
     cfg.goal=num($("cGoal").value);
+    cfg.fatGoal=num($("cFatGoal").value);
     cfg.height=num($("cHeight").value);
     save(); render(); toast("設定を保存した");
     if(entries.length===0) window.scrollTo({top:0,behavior:"smooth"});
