@@ -12,6 +12,7 @@
   :root{
     --bg:#0f172a; --card:#1e293b; --card2:#273449; --ink:#f1f5f9; --muted:#94a3b8;
     --accent:#38bdf8; --good:#34d399; --warn:#fbbf24; --bad:#f87171; --line:#334155;
+    --fat:#fb923c; --waist:#a78bfa;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; padding:0; background:var(--bg); color:var(--ink);
@@ -24,6 +25,7 @@
   .card{background:var(--card); border-radius:16px; padding:16px; margin:12px 0;
     box-shadow:0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25);}
   .card h2{margin:0 0 12px; font-size:14px; color:var(--muted); font-weight:600; letter-spacing:.04em;}
+  .welcome{background:var(--card2); border-radius:12px; padding:12px; margin-bottom:12px; font-size:13px; line-height:1.6;}
   /* stats */
   .stats{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .stat{background:var(--card2); border-radius:12px; padding:12px;}
@@ -32,6 +34,10 @@
   .stat .val small{font-size:13px; font-weight:600; color:var(--muted);}
   .delta{font-size:12px; margin-top:4px; font-weight:600;}
   .delta.good{color:var(--good);} .delta.bad{color:var(--bad);} .delta.flat{color:var(--muted);}
+  .progress{grid-column:1/-1; background:var(--card2); border-radius:12px; padding:12px;}
+  .progress .bar{height:10px; background:var(--bg); border-radius:999px; overflow:hidden; margin-top:8px;}
+  .progress .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--good)); border-radius:999px; transition:width .4s;}
+  .progress .cap{display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:6px;}
   /* form */
   .row{display:flex; gap:10px; flex-wrap:wrap;}
   .field{flex:1 1 calc(50% - 5px); min-width:120px;}
@@ -41,21 +47,31 @@
   input,textarea,select{width:100%; background:var(--card2); border:1px solid var(--line);
     color:var(--ink); border-radius:10px; padding:12px; outline:none;}
   input:focus,textarea:focus{border-color:var(--accent);}
-  textarea{resize:vertical; min-height:44px;}
   .btn{display:block; width:100%; border:none; border-radius:12px; padding:14px;
     font-size:16px; font-weight:700; background:var(--accent); color:#062a3a; margin-top:12px;}
   .btn:active{transform:scale(.99);}
   .btn.ghost{background:var(--card2); color:var(--ink); border:1px solid var(--line); font-weight:600;}
   .btn-row{display:flex; gap:10px;} .btn-row .btn{margin-top:0;}
-  /* chart */
+  /* charts */
   svg{width:100%; height:auto; display:block;}
+  .tabs{display:flex; gap:6px; margin-bottom:10px;}
+  .tab{flex:1; border:1px solid var(--line); background:var(--card2); color:var(--muted); border-radius:999px;
+    padding:8px 0; font-size:13px; font-weight:600;}
+  .tab.on{background:var(--accent); color:#062a3a; border-color:var(--accent);}
+  .carousel{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; scrollbar-width:none;}
+  .carousel::-webkit-scrollbar{display:none;}
+  .slide{flex:0 0 100%; scroll-snap-align:center; scroll-snap-stop:always; min-width:0;}
   .legend{display:flex; gap:14px; justify-content:center; font-size:11px; color:var(--muted); margin-top:6px; flex-wrap:wrap;}
+  .legend span{padding:4px 2px;}
+  .legend span.tg{cursor:pointer;} .legend span.off{opacity:.35; text-decoration:line-through;}
   .legend i{display:inline-block; width:12px; height:3px; border-radius:2px; vertical-align:middle; margin-right:4px;}
+  .swipehint{text-align:center; color:var(--muted); font-size:11px; margin-top:4px;}
   /* table */
   table{width:100%; border-collapse:collapse; font-size:13px;}
   th,td{padding:9px 6px; text-align:right; border-bottom:1px solid var(--line);}
   th{color:var(--muted); font-weight:600; font-size:11px;}
   td:first-child,th:first-child{text-align:left;}
+  tr.old td{opacity:.45;}
   .del{color:var(--bad); background:none; border:none; padding:4px 8px; font-size:13px;}
   .edit{color:var(--accent); background:none; border:none; padding:4px 8px; font-size:13px;}
   .empty{color:var(--muted); text-align:center; padding:24px 0; font-size:13px;}
@@ -73,10 +89,10 @@
   <div class="sub" id="paceSub">目標ペース 週 −500g</div>
 </header>
 
-<div class="wrap">
+<div class="wrap" id="wrap">
 
   <!-- 統計 -->
-  <div class="card">
+  <div class="card" id="statsCard">
     <h2>いまの状態（7日平均で判断）</h2>
     <div class="stats">
       <div class="stat">
@@ -95,11 +111,37 @@
         <div class="delta flat" id="sStart">開始: —</div>
       </div>
       <div class="stat">
+        <div class="label">経過日数</div>
+        <div class="val" id="sDays">— <small>日</small></div>
+        <div class="delta flat" id="sDate">開始日: —</div>
+      </div>
+      <div class="stat">
+        <div class="label">目標まで</div>
+        <div class="val" id="sGoal">— <small>kg</small></div>
+        <div class="delta flat" id="sGoalSub">目標体重 未設定</div>
+      </div>
+      <div class="stat">
+        <div class="label">体脂肪 7日平均</div>
+        <div class="val" id="sFat">— <small>%</small></div>
+        <div class="delta flat" id="sFatDelta">未記録</div>
+      </div>
+      <div class="stat">
         <div class="label">ウエスト</div>
         <div class="val" id="sWaist">— <small>cm</small></div>
         <div class="delta flat" id="sWaistDelta">—</div>
       </div>
+      <div class="stat">
+        <div class="label">BMI</div>
+        <div class="val" id="sBmi">—</div>
+        <div class="delta flat" id="sBmiSub">身長 未設定</div>
+      </div>
+      <div class="progress" id="progBox" style="display:none">
+        <div class="label" style="font-size:11px;color:var(--muted)">目標までの進み具合</div>
+        <div class="bar"><i id="progBar"></i></div>
+        <div class="cap"><span id="progL"></span><span id="progC"></span><span id="progR"></span></div>
+      </div>
     </div>
+    <button class="btn ghost" id="shareBtn" style="margin-top:12px">📤 今の状態を共有（コピー）</button>
   </div>
 
   <!-- 入力 -->
@@ -112,7 +154,7 @@
       </div>
       <div class="field">
         <label>体重 (kg) ※必須</label>
-        <input type="number" id="fWeight" inputmode="decimal" step="0.1" placeholder="92.7">
+        <input type="number" id="fWeight" inputmode="decimal" step="0.1" placeholder="例 70.0">
       </div>
       <div class="field">
         <label>ウエスト (cm)</label>
@@ -133,13 +175,31 @@
 
   <!-- グラフ -->
   <div class="card">
-    <h2>体重の推移</h2>
-    <div id="chart"></div>
-    <div class="legend">
-      <span><i style="background:#64748b"></i>毎日の体重</span>
-      <span><i style="background:var(--accent)"></i>7日平均</span>
-      <span><i style="background:var(--warn)"></i>目標ライン</span>
+    <h2>推移グラフ</h2>
+    <div class="tabs">
+      <button class="tab on" data-i="0">体重</button>
+      <button class="tab" data-i="1">体脂肪</button>
+      <button class="tab" data-i="2">ウエスト</button>
     </div>
+    <div class="carousel" id="carousel">
+      <div class="slide"><div id="chartW"></div>
+        <div class="legend">
+          <span class="tg" data-k="daily"><i style="background:#64748b"></i>毎日</span>
+          <span class="tg" data-k="avg"><i style="background:var(--accent)"></i>7日平均</span>
+          <span><i style="background:var(--warn)"></i>目標ライン</span>
+        </div></div>
+      <div class="slide"><div id="chartF"></div>
+        <div class="legend">
+          <span class="tg" data-k="daily"><i style="background:#64748b"></i>毎日</span>
+          <span class="tg" data-k="avg"><i style="background:var(--fat)"></i>7日平均</span>
+        </div></div>
+      <div class="slide"><div id="chartC"></div>
+        <div class="legend">
+          <span class="tg" data-k="daily"><i style="background:#64748b"></i>毎日</span>
+          <span class="tg" data-k="avg"><i style="background:var(--waist)"></i>7日平均</span>
+        </div></div>
+    </div>
+    <div class="swipehint">← 左右にスワイプで切り替え ／ 凡例タップで線の表示・非表示 →</div>
   </div>
 
   <!-- 履歴 -->
@@ -149,20 +209,50 @@
   </div>
 
   <!-- 設定・バックアップ -->
-  <div class="card">
+  <div class="card" id="cfgCard">
     <h2>設定とバックアップ</h2>
+    <div class="welcome" id="welcome" style="display:none">
+      👋 はじめまして！まず下の設定を入れてください。<br>
+      開始体重は空欄でもOK（最初に記録した体重が開始体重になります）。設定はあとからいつでも変えられます。
+    </div>
     <div class="row">
       <div class="field">
         <label>開始体重 (kg)</label>
-        <input type="number" id="cStart" inputmode="decimal" step="0.1" placeholder="92.7">
+        <input type="number" id="cStart" inputmode="decimal" step="0.1" placeholder="例 70.0">
+      </div>
+      <div class="field">
+        <label>開始日</label>
+        <input type="date" id="cStartDate">
       </div>
       <div class="field">
         <label>目標ペース (g/週・減)</label>
         <input type="number" id="cPace" inputmode="numeric" step="50" placeholder="500">
       </div>
+      <div class="field">
+        <label>目標体重 (kg)</label>
+        <input type="number" id="cGoal" inputmode="decimal" step="0.1" placeholder="任意">
+      </div>
+      <div class="field">
+        <label>身長 (cm)・BMI用</label>
+        <input type="number" id="cHeight" inputmode="decimal" step="0.1" placeholder="任意">
+      </div>
     </div>
     <button class="btn ghost" id="saveCfg">設定を保存</button>
-    <div class="btn-row" style="margin-top:12px;">
+
+    <details style="margin-top:14px;" id="restartBox">
+      <summary>🔄 新しく開始し直す（半年後などの再スタート）</summary>
+      <div class="hint">今までの記録は消えません。CSVを自動で書き出してから、新しい開始日・開始体重でグラフと統計を数え直します。古い記録は履歴に薄く残ります。</div>
+      <div class="row" style="margin-top:10px;">
+        <div class="field"><label>新しい開始体重 (kg)</label><input type="number" id="rStart" inputmode="decimal" step="0.1"></div>
+        <div class="field"><label>新しい開始日</label><input type="date" id="rDate"></div>
+        <div class="field"><label>目標ペース (g/週)</label><input type="number" id="rPace" inputmode="numeric" step="50"></div>
+        <div class="field"><label>目標体重 (kg)</label><input type="number" id="rGoal" inputmode="decimal" step="0.1" placeholder="任意"></div>
+      </div>
+      <button class="btn ghost" id="restartBtn">この内容で新しく開始</button>
+      <div class="hint" id="pastCycles"></div>
+    </details>
+
+    <div class="btn-row" style="margin-top:14px;">
       <button class="btn ghost" id="exportBtn">CSV書き出し</button>
       <button class="btn ghost" id="importBtn">CSV読み込み</button>
     </div>
@@ -170,15 +260,15 @@
     <details style="margin-top:12px;">
       <summary>iPhoneでアプリのように使う方法</summary>
       <div class="hint">
-        1. このファイルをSafariで開く（Googleドライブやファイルアプリ経由）<br>
+        1. このページをSafariで開く<br>
         2. 共有ボタン → <b>「ホーム画面に追加」</b><br>
         3. 以後はアイコンから起動。データは端末内に保存される<br>
-        ⚠️ 念のため週1でCSV書き出しをドライブに保存しておくと安心。
+        ⚠️ 機種変更やデータ消去で記録が消えるので、ときどきCSV書き出しで保存しておくと安心。
       </div>
     </details>
   </div>
 
-  <div class="hint" style="text-align:center; padding:8px 0 24px;">
+  <div class="hint" id="footHint" style="text-align:center; padding:8px 0 24px;">
     データはこの端末のブラウザ内だけに保存されます（外部送信なし・オフライン動作）。
   </div>
 </div>
@@ -188,141 +278,243 @@
 <script>
 (function(){
   "use strict";
-  var DKEY="weightLog.entries", CKEY="weightLog.config";
+  var DKEY="weightLog.entries", CKEY="weightLog.config", UKEY="weightLog.ui";
   var entries = load(DKEY, []);
-  var cfg = load(CKEY, {start:92.7, pace:500});
+  var cfg = load(CKEY, {});
+  var ui = load(UKEY, {daily:true, avg:true});
+  // 既定値（新規ユーザーは開始体重なし＝最初の記録が開始体重になる）
+  if(cfg.start===undefined) cfg.start=null;
+  if(cfg.pace==null) cfg.pace=500;
+  if(cfg.goal===undefined) cfg.goal=null;
+  if(cfg.height===undefined) cfg.height=null;
+  if(!cfg.cycles) cfg.cycles=[];
+  if(cfg.startDate===undefined) cfg.startDate=null;
+  entries.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; });
+  // 旧バージョンからの移行：開始日が無ければ最初の記録日
+  if(!cfg.startDate && entries.length) cfg.startDate=entries[0].date;
 
   function load(k,def){ try{var v=localStorage.getItem(k); return v?JSON.parse(v):def;}catch(e){return def;} }
-  function save(){ localStorage.setItem(DKEY, JSON.stringify(entries)); localStorage.setItem(CKEY, JSON.stringify(cfg)); }
+  function save(){ try{ localStorage.setItem(DKEY, JSON.stringify(entries)); localStorage.setItem(CKEY, JSON.stringify(cfg)); localStorage.setItem(UKEY, JSON.stringify(ui)); }catch(e){} }
   function $(id){ return document.getElementById(id); }
   function todayStr(){ var d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
   function num(v){ var n=parseFloat(v); return isNaN(n)?null:n; }
   function fmt(n,d){ return n==null?"—":n.toFixed(d==null?1:d); }
   function sortE(){ entries.sort(function(a,b){ return a.date<b.date?-1:a.date>b.date?1:0; }); }
+  function T(s){ return new Date(s+"T00:00:00").getTime(); }
   var toastT;
-  function toast(msg){ var t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},1800); }
+  function toast(msg){ var t=$("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},2000); }
 
-  // 7日移動平均（その日含む直近7日の体重平均）
-  function movingAvg(idx){
-    var day = new Date(entries[idx].date);
-    var sum=0,c=0;
+  // ---- 計算 ----
+  // 現在のサイクルの開始インデックス
+  function actStart(){
+    if(!cfg.startDate) return 0;
+    for(var i=0;i<entries.length;i++) if(entries[i].date>=cfg.startDate) return i;
+    return entries.length;
+  }
+  function cycleMin(idx){ return (cfg.startDate && entries[idx].date>=cfg.startDate) ? cfg.startDate : null; }
+  // 7日移動平均（その日含む直近7日。開始日より前の記録は混ぜない）
+  function mavg(idx,key){
+    var day=T(entries[idx].date), mn=cycleMin(idx), sum=0, c=0;
     for(var j=idx;j>=0;j--){
-      var diff=(day-new Date(entries[j].date))/86400000;
-      if(diff>6) break;
-      if(entries[j].weight!=null){ sum+=entries[j].weight; c++; }
+      if(mn && entries[j].date<mn) break;
+      if((day-T(entries[j].date))/86400000>6) break;
+      if(entries[j][key]!=null){ sum+=entries[j][key]; c++; }
     }
     return c?sum/c:null;
   }
+  function lastIdx(key){
+    var as=actStart();
+    for(var i=entries.length-1;i>=as;i--) if(entries[i][key]!=null) return i;
+    return -1;
+  }
+  function prevIdx(key,li){
+    var as=actStart();
+    for(var i=li-1;i>=as;i--) if(entries[i][key]!=null) return i;
+    return -1;
+  }
+  // 7日以上前の平均との差
+  function weekDelta(key,li){
+    var as=actStart(), day=T(entries[li].date);
+    for(var j=li-1;j>=as;j--){
+      if(entries[j][key]!=null && (day-T(entries[j].date))/86400000>=7) return mavg(li,key)-mavg(j,key);
+    }
+    return null;
+  }
+  function startWeight(){
+    if(cfg.start!=null) return cfg.start;
+    var li=lastIdx("weight"); if(li<0) return null;
+    var as=actStart(); for(var i=as;i<entries.length;i++) if(entries[i].weight!=null) return entries[i].weight;
+    return null;
+  }
+  function isFirstRun(){ return entries.length===0 && cfg.start==null; }
 
+  // ---- 描画 ----
   function render(){
     sortE();
     renderStats();
-    renderChart();
+    renderCharts();
     renderHist();
-    $("paceSub").textContent = "目標ペース 週 −"+(cfg.pace||500)+"g";
+    renderCycles();
+    var sub="目標ペース 週 −"+cfg.pace+"g";
+    if(cfg.goal!=null) sub+=" ／ 目標 "+fmt(cfg.goal)+"kg";
+    $("paceSub").textContent=sub;
+    // 初回は設定カードを最上部に
+    var wrap=$("wrap"), cc=$("cfgCard");
+    if(isFirstRun()){ wrap.insertBefore(cc,$("statsCard")); $("welcome").style.display="block"; }
+    else { wrap.insertBefore(cc,$("footHint")); $("welcome").style.display="none"; }
   }
+
+  function setDelta(el, v, text, goodDown){
+    el.className="delta"; el.style.color="";
+    if(v==null||isNaN(v)){ el.classList.add("flat"); el.textContent=text; return; }
+    if(Math.abs(v)<0.0005){ el.classList.add("flat"); return; }
+    var good = goodDown ? v<0 : v>0;
+    el.classList.add(good?"good":"bad");
+  }
+  function sgn(v,d){ return (v>0?"+":"")+v.toFixed(d); }
 
   function renderStats(){
-    var n=entries.length;
-    var startW = cfg.start!=null ? cfg.start : (n? entries[0].weight : null);
-    $("sStart").textContent = "開始: "+(startW!=null?fmt(startW)+"kg":"—");
-    if(!n){ return; }
-    var lastAvg=movingAvg(n-1);
-    $("sAvg").innerHTML = fmt(lastAvg)+' <small>kg</small>';
+    var as=actStart();
+    var startW=startWeight();
+    $("sStart").textContent="開始: "+(startW!=null?fmt(startW)+"kg":"—");
+    $("sDate").textContent="開始日: "+(cfg.startDate||"—");
+    var li=lastIdx("weight");
 
-    // 前回記録時の7日平均との差（参考）
-    if(n>=2){
-      var prevAvg=movingAvg(n-2);
-      var d=(lastAvg-prevAvg)*1000;
-      setDelta($("sAvgDelta"), d, "前回比 ", "g");
-    } else $("sAvgDelta").textContent="記録待ち";
+    // 体重
+    if(li<0){
+      $("sAvg").innerHTML='— <small>kg</small>'; $("sAvgDelta").className="delta flat"; $("sAvgDelta").textContent="記録待ち";
+      $("sWeek").innerHTML='— <small>g</small>'; $("sWeekJudge").className="delta flat"; $("sWeekJudge").textContent="—";
+      $("sTotal").innerHTML='— <small>kg</small>'; $("sDays").innerHTML='— <small>日</small>';
+      $("sGoal").innerHTML='— <small>kg</small>'; $("sGoalSub").className="delta flat"; $("sGoalSub").textContent=cfg.goal!=null?"目標 "+fmt(cfg.goal)+"kg":"目標体重 未設定";
+      $("progBox").style.display="none"; $("sBmi").textContent="—"; $("sBmiSub").className="delta flat"; $("sBmiSub").textContent=cfg.height?"体重待ち":"身長 未設定";
+    } else {
+      var avg=mavg(li,"weight");
+      $("sAvg").innerHTML=fmt(avg)+' <small>kg</small>';
+      var pi=prevIdx("weight",li), el=$("sAvgDelta");
+      if(pi>=0){ var d=(avg-mavg(pi,"weight"))*1000; setDelta(el,d,"",true); if(Math.abs(d)<1){el.classList.add("flat");el.textContent="前回比 ±0";} else el.textContent="前回比 "+(d>0?"+":"")+Math.round(d)+"g"; }
+      else { el.className="delta flat"; el.textContent="記録待ち"; }
 
-    // 直近7日の増減：今日の平均 vs 7日以上前の平均
-    var weekAgoAvg=null;
-    var day=new Date(entries[n-1].date);
-    for(var j=n-1;j>=0;j--){
-      var diff=(day-new Date(entries[j].date))/86400000;
-      if(diff>=7){ weekAgoAvg=movingAvg(j); break; }
+      var wd=weekDelta("weight",li);
+      if(wd!=null){ var g=wd*1000; $("sWeek").innerHTML=(g>0?"+":"")+Math.round(g)+' <small>g</small>'; judgeWeek($("sWeekJudge"),g); }
+      else { $("sWeek").innerHTML='— <small>g</small>'; $("sWeekJudge").className="delta flat"; $("sWeekJudge").style.color=""; $("sWeekJudge").textContent="7日分たまると表示"; }
+
+      if(startW!=null){ var td=avg-startW; $("sTotal").innerHTML=sgn(td,1)+' <small>kg</small>'; }
+      var days=Math.max(0,Math.round((T(todayStr())-T(cfg.startDate||entries[as].date))/86400000))+1;
+      $("sDays").innerHTML=days+' <small>日目</small>';
+
+      // 目標
+      var gs=$("sGoalSub");
+      if(cfg.goal!=null){
+        var rem=avg-cfg.goal;
+        if(rem<=0){ $("sGoal").innerHTML='達成 <small>🎉</small>'; gs.className="delta good"; gs.textContent="目標 "+fmt(cfg.goal)+"kg 到達！"; }
+        else {
+          $("sGoal").innerHTML='−'+rem.toFixed(1)+' <small>kg</small>';
+          var weeks=rem/(cfg.pace/1000), eta=new Date(Date.now()+weeks*7*86400000);
+          gs.className="delta flat"; gs.textContent="目標ペースなら "+eta.getFullYear()+"年"+(eta.getMonth()+1)+"月頃";
+        }
+        if(startW!=null && startW>cfg.goal){
+          var pct=Math.max(0,Math.min(100,(startW-avg)/(startW-cfg.goal)*100));
+          $("progBox").style.display="block"; $("progBar").style.width=pct+"%";
+          $("progL").textContent=fmt(startW)+"kg"; $("progC").textContent=Math.round(pct)+"%"; $("progR").textContent=fmt(cfg.goal)+"kg";
+        } else $("progBox").style.display="none";
+      } else { $("sGoal").innerHTML='— <small>kg</small>'; gs.className="delta flat"; gs.textContent="目標体重 未設定（設定で入力）"; $("progBox").style.display="none"; }
+
+      // BMI
+      if(cfg.height){
+        var h=cfg.height/100, bmi=avg/(h*h);
+        $("sBmi").textContent=bmi.toFixed(1);
+        var cat=bmi<18.5?"低体重":bmi<25?"普通体重":bmi<30?"肥満(1度)":bmi<35?"肥満(2度)":bmi<40?"肥満(3度)":"肥満(4度)";
+        $("sBmiSub").className="delta flat"; $("sBmiSub").textContent=cat+"（7日平均で計算）";
+      } else { $("sBmi").textContent="—"; $("sBmiSub").className="delta flat"; $("sBmiSub").textContent="身長 未設定（設定で入力）"; }
     }
-    if(weekAgoAvg!=null){
-      var wd=(lastAvg-weekAgoAvg)*1000;
-      $("sWeek").innerHTML = (wd>0?"+":"")+Math.round(wd)+' <small>g</small>';
-      judgeWeek($("sWeekJudge"), wd);
-    } else { $("sWeek").innerHTML='— <small>g</small>'; $("sWeekJudge").textContent="7日分たまると表示"; }
 
-    // 開始からの変化
-    if(startW!=null){
-      var td=lastAvg-startW;
-      $("sTotal").innerHTML=(td>0?"+":"")+fmt(td)+' <small>kg</small>';
+    // 体脂肪
+    var fi=lastIdx("fat");
+    if(fi<0){ $("sFat").innerHTML='— <small>%</small>'; $("sFatDelta").className="delta flat"; $("sFatDelta").textContent="未記録"; }
+    else {
+      $("sFat").innerHTML=fmt(mavg(fi,"fat"))+' <small>%</small>';
+      var fd=weekDelta("fat",fi), fe=$("sFatDelta");
+      if(fd!=null){ setDelta(fe,fd,"",true); if(Math.abs(fd)<0.05){fe.classList.add("flat");fe.textContent="7日前比 ±0";} else fe.textContent="7日前比 "+sgn(fd,1)+"%"; }
+      else { fe.className="delta flat"; fe.textContent="7日分たまると比較"; }
     }
-
-    // ウエスト（最新の入力値）
-    var lastWaist=null, prevWaist=null;
-    for(var k=n-1;k>=0;k--){ if(entries[k].waist!=null){ if(lastWaist==null) lastWaist=entries[k].waist; else {prevWaist=entries[k].waist; break;} } }
-    if(lastWaist!=null){
-      $("sWaist").innerHTML=fmt(lastWaist)+' <small>cm</small>';
-      if(prevWaist!=null) setDelta($("sWaistDelta"), (lastWaist-prevWaist)*10/10*10, "前回比 ", "cm", (lastWaist-prevWaist));
-      else $("sWaistDelta").textContent="記録待ち";
-    } else { $("sWaist").innerHTML='— <small>cm</small>'; $("sWaistDelta").textContent="未記録"; }
+    // ウエスト
+    var wi=lastIdx("waist");
+    if(wi<0){ $("sWaist").innerHTML='— <small>cm</small>'; $("sWaistDelta").className="delta flat"; $("sWaistDelta").textContent="未記録"; }
+    else {
+      $("sWaist").innerHTML=fmt(entries[wi].waist)+' <small>cm</small>';
+      var wp=prevIdx("waist",wi), we=$("sWaistDelta");
+      if(wp>=0){ var dd=entries[wi].waist-entries[wp].waist; setDelta(we,dd,"",true); if(Math.abs(dd)<0.05){we.classList.add("flat");we.textContent="前回比 ±0";} else we.textContent="前回比 "+sgn(dd,1)+"cm"; }
+      else { we.className="delta flat"; we.textContent="記録待ち"; }
+    }
   }
 
-  function setDelta(el, grams, prefix, unit, rawCm){
-    el.className="delta";
-    var v = unit==="cm" ? (rawCm) : grams;
-    if(Math.abs(v) < (unit==="cm"?0.05:1)){ el.classList.add("flat"); el.textContent=prefix+"±0"; return; }
-    var down = v<0;
-    el.classList.add(down?"good":"bad");
-    if(unit==="cm") el.textContent=prefix+(v>0?"+":"")+v.toFixed(1)+"cm";
-    else el.textContent=prefix+(v>0?"+":"")+Math.round(v)+"g";
-  }
   function judgeWeek(el, g){
-    el.className="delta";
+    el.className="delta"; el.style.color="";
     var target=cfg.pace||500;
-    if(g <= -target*1.6){ el.classList.add("warn"); el.style.color="var(--warn)"; el.textContent="速すぎ→+150kcal検討"; }
-    else if(g <= -target*0.6){ el.classList.add("good"); el.style.color=""; el.textContent="◎ 黄金ペース"; }
-    else if(g < 0){ el.classList.add("flat"); el.style.color=""; el.textContent="やや遅い"; }
-    else { el.classList.add("bad"); el.style.color=""; el.textContent="停滞→−150kcal or 歩数↑"; }
+    if(g <= -target*1.6){ el.classList.add("flat"); el.style.color="var(--warn)"; el.textContent="速すぎ→+150kcal検討"; }
+    else if(g <= -target*0.6){ el.classList.add("good"); el.textContent="◎ 黄金ペース"; }
+    else if(g < 0){ el.classList.add("flat"); el.textContent="やや遅い"; }
+    else { el.classList.add("bad"); el.textContent="停滞→−150kcal or 歩数↑"; }
   }
 
-  function renderChart(){
-    var box=$("chart");
-    var pts=entries.filter(function(e){return e.weight!=null;});
-    if(pts.length<1){ box.innerHTML='<div class="empty">体重を記録するとグラフが出ます</div>'; return; }
-    var W=520,H=260,padL=38,padR=12,padT=14,padB=26;
-    var xs=pts.map(function(e){return new Date(e.date).getTime();});
-    var minX=Math.min.apply(null,xs), maxX=Math.max.apply(null,xs);
-    if(minX===maxX){ maxX=minX+86400000; }
-    var avgArr=[]; entries.forEach(function(e,i){ if(e.weight!=null) avgArr.push({x:new Date(e.date).getTime(), y:movingAvg(i)}); });
-    // 目標ライン: 開始体重から週pace gで減
-    var startW = cfg.start!=null?cfg.start:pts[0].weight;
-    var startX = cfg.start!=null? minX : new Date(pts[0].date).getTime();
-    var paceKgPerMs=(cfg.pace||500)/1000/(7*86400000);
-    var tgtY1=startW, tgtY2=startW-paceKgPerMs*(maxX-startX);
-    var allY=pts.map(function(e){return e.weight;}).concat(avgArr.map(function(a){return a.y;})).concat([tgtY1,tgtY2]);
-    var minY=Math.min.apply(null,allY), maxY=Math.max.apply(null,allY);
+  // ---- グラフ ----
+  function drawChart(boxId,key,color,dec,label,withTarget){
+    var box=$(boxId), as=actStart(), pts=[];
+    for(var i=as;i<entries.length;i++){
+      if(entries[i][key]!=null) pts.push({t:T(entries[i].date), v:entries[i][key], a:mavg(i,key), d:entries[i].date});
+    }
+    if(!pts.length){ box.innerHTML='<div class="empty">'+label+'を記録するとグラフが出ます</div>'; return; }
+    var W=520,H=260,padL=40,padR=12,padT=14,padB=26;
+    var minX=pts[0].t, maxX=pts[pts.length-1].t;
+    var startW=startWeight(), startX=cfg.startDate?T(cfg.startDate):minX;
+    var showT = withTarget && startW!=null;
+    if(showT) minX=Math.min(minX,startX);
+    if(minX===maxX) maxX=minX+86400000;
+    var perMs=cfg.pace/1000/(7*86400000), tPath=null;
+    if(showT){
+      var y2=startW-perMs*(maxX-startX);
+      if(cfg.goal!=null && cfg.goal<startW && y2<cfg.goal){
+        var tEnd=startX+(startW-cfg.goal)/perMs;
+        tPath=[[startX,startW],[tEnd,cfg.goal],[maxX,cfg.goal]];
+      } else tPath=[[startX,startW],[maxX,y2]];
+    }
+    var vals=[];
+    pts.forEach(function(p){ if(ui.daily||!ui.avg) vals.push(p.v); if(ui.avg||!ui.daily) vals.push(p.a); });
+    if(tPath) tPath.forEach(function(q){ vals.push(q[1]); });
+    var minY=Math.min.apply(null,vals), maxY=Math.max.apply(null,vals);
     var pad=(maxY-minY)*0.12||0.5; minY-=pad; maxY+=pad;
     function X(t){ return padL+(t-minX)/(maxX-minX)*(W-padL-padR); }
     function Y(v){ return padT+(maxY-v)/(maxY-minY)*(H-padT-padB); }
     var svg='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="xMidYMid meet">';
-    // grid + y labels
-    for(var g=0;g<=4;g++){ var yv=minY+(maxY-minY)*g/4; var yy=Y(yv);
+    for(var g=0;g<=4;g++){ var yv=minY+(maxY-minY)*g/4, yy=Y(yv);
       svg+='<line x1="'+padL+'" y1="'+yy+'" x2="'+(W-padR)+'" y2="'+yy+'" stroke="#334155" stroke-width="1"/>';
-      svg+='<text x="'+(padL-4)+'" y="'+(yy+3)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+yv.toFixed(1)+'</text>';
+      svg+='<text x="'+(padL-4)+'" y="'+(yy+3)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+yv.toFixed(dec)+'</text>';
     }
-    // target line
-    svg+='<line x1="'+X(startX)+'" y1="'+Y(tgtY1)+'" x2="'+X(maxX)+'" y2="'+Y(tgtY2)+'" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 4" opacity="0.8"/>';
-    // daily points + thin line
-    var dp=""; pts.forEach(function(e,i){ var x=X(new Date(e.date).getTime()),y=Y(e.weight); dp+=(i?"L":"M")+x+" "+y+" "; });
-    svg+='<path d="'+dp+'" fill="none" stroke="#64748b" stroke-width="1.2" opacity="0.7"/>';
-    pts.forEach(function(e){ svg+='<circle cx="'+X(new Date(e.date).getTime())+'" cy="'+Y(e.weight)+'" r="2.4" fill="#94a3b8"/>'; });
-    // moving average line
-    var ap=""; avgArr.forEach(function(a,i){ ap+=(i?"L":"M")+X(a.x)+" "+Y(a.y)+" "; });
-    svg+='<path d="'+ap+'" fill="none" stroke="#38bdf8" stroke-width="2.6" stroke-linejoin="round"/>';
-    // x labels (first/last)
-    svg+='<text x="'+padL+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="start">'+pts[0].date.slice(5)+'</text>';
-    svg+='<text x="'+(W-padR)+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+pts[pts.length-1].date.slice(5)+'</text>';
+    if(tPath){
+      var tp=""; tPath.forEach(function(q,i){ tp+=(i?"L":"M")+X(q[0])+" "+Y(q[1])+" "; });
+      svg+='<path d="'+tp+'" fill="none" stroke="#fbbf24" stroke-width="2" stroke-dasharray="5 4" opacity="0.8"/>';
+    }
+    if(ui.daily){
+      var dp=""; pts.forEach(function(p,i){ dp+=(i?"L":"M")+X(p.t)+" "+Y(p.v)+" "; });
+      svg+='<path d="'+dp+'" fill="none" stroke="#64748b" stroke-width="1.2" opacity="0.7"/>';
+      pts.forEach(function(p){ svg+='<circle cx="'+X(p.t)+'" cy="'+Y(p.v)+'" r="2.4" fill="#94a3b8"/>'; });
+    }
+    if(ui.avg){
+      var ap=""; pts.forEach(function(p,i){ ap+=(i?"L":"M")+X(p.t)+" "+Y(p.a)+" "; });
+      svg+='<path d="'+ap+'" fill="none" stroke="'+color+'" stroke-width="2.6" stroke-linejoin="round"/>';
+      if(pts.length===1) svg+='<circle cx="'+X(pts[0].t)+'" cy="'+Y(pts[0].a)+'" r="4" fill="'+color+'"/>';
+    }
+    svg+='<text x="'+padL+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="start">'+new Date(minX).toISOString().slice(5,10)+'</text>';
+    svg+='<text x="'+(W-padR)+'" y="'+(H-8)+'" fill="#94a3b8" font-size="9" text-anchor="end">'+pts[pts.length-1].d.slice(5)+'</text>';
     svg+='</svg>';
     box.innerHTML=svg;
+  }
+  function renderCharts(){
+    drawChart("chartW","weight","#38bdf8",1,"体重",true);
+    drawChart("chartF","fat","#fb923c",1,"体脂肪",false);
+    drawChart("chartC","waist","#a78bfa",1,"ウエスト",false);
+    var tg=document.querySelectorAll(".legend .tg");
+    for(var i=0;i<tg.length;i++){ var k=tg[i].getAttribute("data-k"); tg[i].classList.toggle("off",!ui[k]); }
   }
 
   function renderHist(){
@@ -330,16 +522,17 @@
     if(!entries.length){ box.innerHTML='<div class="empty">まだ記録がありません</div>'; return; }
     var rows='<table><thead><tr><th>日付</th><th>体重</th><th>7日平均</th><th>ウエスト</th><th>体脂肪</th><th></th></tr></thead><tbody>';
     for(var i=entries.length-1;i>=0;i--){
-      var e=entries[i], avg=e.weight!=null?movingAvg(i):null;
-      rows+='<tr>'
-        +'<td>'+e.date.slice(5)+'</td>'
+      var e=entries[i], avg=e.weight!=null?mavg(i,"weight"):null;
+      var old = cfg.startDate && e.date<cfg.startDate;
+      rows+='<tr'+(old?' class="old"':'')+'>'
+        +'<td>'+e.date.slice(2).replace(/-/g,"/")+'</td>'
         +'<td>'+fmt(e.weight)+'</td>'
         +'<td style="color:#38bdf8">'+fmt(avg)+'</td>'
         +'<td>'+fmt(e.waist)+'</td>'
         +'<td>'+fmt(e.fat)+'</td>'
         +'<td style="white-space:nowrap"><button class="edit" data-d="'+e.date+'">編集</button><button class="del" data-d="'+e.date+'">削除</button></td>'
         +'</tr>';
-      if(e.memo) rows+='<tr><td colspan="6" style="color:#94a3b8;font-size:11px;text-align:left;padding-top:0;border:none">📝 '+escapeHtml(e.memo)+'</td></tr>';
+      if(e.memo) rows+='<tr'+(old?' class="old"':'')+'><td colspan="6" style="color:#94a3b8;font-size:11px;text-align:left;padding-top:0;border:none">📝 '+escapeHtml(e.memo)+'</td></tr>';
     }
     rows+='</tbody></table>';
     box.innerHTML=rows;
@@ -348,6 +541,15 @@
   }
   function escapeHtml(s){ return s.replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
 
+  function renderCycles(){
+    var el=$("pastCycles");
+    if(!cfg.cycles.length){ el.textContent=""; return; }
+    el.innerHTML="<b>過去のサイクル</b><br>"+cfg.cycles.map(function(c){
+      return c.startDate+" 〜 "+c.endDate+"：開始 "+fmt(c.start)+"kg → 終了 "+fmt(c.end)+"kg"+(c.start!=null&&c.end!=null?"（"+sgn(c.end-c.start,1)+"kg）":"");
+    }).join("<br>");
+  }
+
+  // ---- 記録の操作 ----
   function saveEntry(){
     var date=$("fDate").value||todayStr();
     var w=num($("fWeight").value);
@@ -356,6 +558,7 @@
     var idx=entries.findIndex(function(e){return e.date===date;});
     if(idx>=0) entries[idx]=rec; else entries.push(rec);
     if(cfg.start==null){ cfg.start=w; $("cStart").value=w; }
+    if(!cfg.startDate){ cfg.startDate=date; $("cStartDate").value=date; }
     save(); render();
     $("fWeight").value=""; $("fWaist").value=""; $("fFat").value=""; $("fMemo").value="";
     toast("保存したよ 💪");
@@ -368,15 +571,17 @@
     window.scrollTo({top:0,behavior:"smooth"}); toast("読み込んだ。直して保存で上書き");
   }
 
+  // ---- CSV ----
   function exportCSV(){
     var head="date,weight,waist,fat,memo\n";
     var body=entries.map(function(e){ return [e.date, e.weight==null?"":e.weight, e.waist==null?"":e.waist, e.fat==null?"":e.fat, '"'+(e.memo||"").replace(/"/g,'""')+'"'].join(","); }).join("\n");
-    var blob=new Blob([head+body], {type:"text/csv;charset=utf-8"});
+    var blob=new Blob(["﻿"+head+body], {type:"text/csv;charset=utf-8"});
     var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download="weight-log-"+todayStr()+".csv"; a.click();
+    a.download="weight-log-"+todayStr()+".csv"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
     toast("CSVを書き出した");
   }
   function importCSV(text){
+    text=text.replace(/^﻿/,"");
     var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
     if(!lines.length){ toast("空ファイル"); return; }
     var start = lines[0].toLowerCase().indexOf("date")===0 ? 1 : 0;
@@ -388,6 +593,10 @@
       var idx=entries.findIndex(function(e){return e.date===date;});
       if(idx>=0) entries[idx]=rec; else entries.push(rec); added++;
     }
+    sortE();
+    if(!cfg.startDate && entries.length) cfg.startDate=entries[0].date;
+    if(cfg.start==null && entries.length && entries[0].weight!=null) cfg.start=entries[0].weight;
+    syncCfgInputs();
     save(); render(); toast(added+"件 読み込んだ");
   }
   function parseCSVLine(line){
@@ -398,15 +607,86 @@
     } out.push(cur); return out;
   }
 
-  // wire up
+  // ---- 共有（コピー） ----
+  function shareText(){
+    var li=lastIdx("weight");
+    if(li<0) return null;
+    var avg=mavg(li,"weight"), s=startWeight();
+    var t="📉 減量ログ "+todayStr()+"\n";
+    t+="体重(7日平均) "+fmt(avg)+"kg";
+    if(s!=null) t+="（開始 "+fmt(s)+"kg から "+sgn(avg-s,1)+"kg）";
+    var wd=weekDelta("weight",li);
+    if(wd!=null) t+="\n直近7日 "+(wd>0?"+":"")+Math.round(wd*1000)+"g";
+    var fi=lastIdx("fat"); if(fi>=0) t+="\n体脂肪(7日平均) "+fmt(mavg(fi,"fat"))+"%";
+    var wi=lastIdx("waist"); if(wi>=0) t+="\nウエスト "+fmt(entries[wi].waist)+"cm";
+    if(cfg.goal!=null) t+="\n目標 "+fmt(cfg.goal)+"kg（あと "+Math.max(0,avg-cfg.goal).toFixed(1)+"kg）";
+    return t;
+  }
+  function doShare(){
+    var t=shareText(); if(!t){ toast("まず体重を記録してね"); return; }
+    if(navigator.share){ navigator.share({text:t}).catch(function(){}); return; }
+    if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(function(){ toast("コピーした。LINEなどに貼れるよ"); },function(){ prompt("コピーして使ってね",t); }); }
+    else prompt("コピーして使ってね",t);
+  }
+
+  // ---- 設定 ----
+  function syncCfgInputs(){
+    $("cStart").value = cfg.start!=null?cfg.start:"";
+    $("cStartDate").value = cfg.startDate||"";
+    $("cPace").value = cfg.pace||500;
+    $("cGoal").value = cfg.goal!=null?cfg.goal:"";
+    $("cHeight").value = cfg.height!=null?cfg.height:"";
+  }
+  function saveCfg(){
+    cfg.start=num($("cStart").value);
+    cfg.startDate=$("cStartDate").value||cfg.startDate||null;
+    cfg.pace=num($("cPace").value)||500;
+    cfg.goal=num($("cGoal").value);
+    cfg.height=num($("cHeight").value);
+    save(); render(); toast("設定を保存した");
+    if(entries.length===0) window.scrollTo({top:0,behavior:"smooth"});
+  }
+  function prepRestart(){
+    var li=lastIdx("weight");
+    $("rStart").value = li>=0 ? mavg(li,"weight").toFixed(1) : (cfg.start!=null?cfg.start:"");
+    $("rDate").value = todayStr();
+    $("rPace").value = cfg.pace||500;
+    $("rGoal").value = cfg.goal!=null?cfg.goal:"";
+  }
+  function doRestart(){
+    var sw=num($("rStart").value), sd=$("rDate").value||todayStr();
+    if(sw==null){ toast("新しい開始体重を入れてね"); return; }
+    if(!confirm("今までの記録をCSVで書き出してから、"+sd+" を新しい開始日にして数え直す。記録は消えないよ。OK？")) return;
+    exportCSV();
+    var li=lastIdx("weight");
+    if(cfg.startDate && li>=0){
+      cfg.cycles.push({startDate:cfg.startDate, endDate:entries[li].date, start:startWeight(), end:+mavg(li,"weight").toFixed(1)});
+    }
+    cfg.start=sw; cfg.startDate=sd; cfg.pace=num($("rPace").value)||500; cfg.goal=num($("rGoal").value);
+    syncCfgInputs(); save(); render();
+    $("restartBox").open=false;
+    toast("新しく開始した！ 🚀"); window.scrollTo({top:0,behavior:"smooth"});
+  }
+
+  // ---- 配線 ----
   $("fDate").value=todayStr();
-  if(cfg.start!=null) $("cStart").value=cfg.start;
-  $("cPace").value=cfg.pace||500;
+  syncCfgInputs();
   $("saveBtn").onclick=saveEntry;
-  $("saveCfg").onclick=function(){ cfg.start=num($("cStart").value); cfg.pace=num($("cPace").value)||500; save(); render(); toast("設定を保存した"); };
+  $("saveCfg").onclick=saveCfg;
   $("exportBtn").onclick=exportCSV;
   $("importBtn").onclick=function(){ $("fileIn").click(); };
   $("fileIn").onchange=function(ev){ var f=ev.target.files[0]; if(!f) return; var r=new FileReader(); r.onload=function(){ importCSV(r.result); }; r.readAsText(f); ev.target.value=""; };
+  $("shareBtn").onclick=doShare;
+  $("restartBtn").onclick=doRestart;
+  $("restartBox").addEventListener("toggle",function(){ if($("restartBox").open) prepRestart(); });
+
+  // グラフのタブ＆スワイプ
+  var car=$("carousel"), tabs=document.querySelectorAll(".tab");
+  function setTab(i){ for(var k=0;k<tabs.length;k++) tabs[k].classList.toggle("on",k===i); }
+  for(var ti=0;ti<tabs.length;ti++){ (function(i){ tabs[i].onclick=function(){ car.scrollTo({left:car.clientWidth*i,behavior:"smooth"}); setTab(i); }; })(ti); }
+  car.addEventListener("scroll",function(){ setTab(Math.round(car.scrollLeft/car.clientWidth)); });
+  var tgs=document.querySelectorAll(".legend .tg");
+  for(var gi=0;gi<tgs.length;gi++){ tgs[gi].onclick=function(){ var k=this.getAttribute("data-k"); ui[k]=!ui[k]; if(!ui.daily&&!ui.avg){ ui[k==="daily"?"avg":"daily"]=true; } save(); renderCharts(); }; }
 
   render();
 })();
